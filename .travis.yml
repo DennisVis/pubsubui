@@ -1,8 +1,0 @@
-language: go
-services:
-- docker
-go:
-- "1.13"
-install: go get -t -v
-notifications:
-  email: false

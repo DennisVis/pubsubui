@@ -1,30 +1,36 @@
-FROM node:10-alpine as node
+# Copyright 2022 Dennis Vis
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-WORKDIR /tmp
+FROM node:18-alpine3.15 AS js-build
+WORKDIR /build
+COPY web/pubsubui/ ./
+RUN npm ci
+RUN npm run build
 
-COPY package.json package-lock.json webpack.config.js /tmp/
-COPY assets /tmp/assets
+FROM golang:1.18.3-alpine3.16 AS go-build
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY ./cmd/ ./cmd/
+COPY ./internal/ ./internal/
+COPY --from=js-build /build/dist/ ./web/pubsubui/dist
+COPY ./web/pubsubui/pubsubui.go ./web/pubsubui/pubsubui.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/pubsubui ./cmd/pubsubui/main.go
 
-RUN npm install && npm run build-prod
-
-FROM golang:1.13 as go-builder
-
-WORKDIR /go/src/app
-
-COPY main.go go.mod go.sum ./
-COPY static ./static
-
-COPY --from=node /tmp/static/bundle.js ./static/bundle.js
-
-RUN go get -d -v ./...
-RUN go install -v ./...
-
-FROM debian:buster-slim
-
-COPY --from=go-builder /go/bin/GoPubSub /usr/local/bin/gopubsub
-COPY --from=go-builder /go/src/app /go/src/app
-
-# Legacy config directory
-WORKDIR /go/src/app/
-
-CMD ["gopubsub"]
+FROM debian:bullseye-slim
+WORKDIR /app
+RUN echo -e "topics:\n" > config.yaml
+COPY --from=go-build /build/bin/pubsubui ./pubsubui
+ENV PUBSUBUI_CONFIG=/app/config.yaml
+ENTRYPOINT ["./pubsubui"]

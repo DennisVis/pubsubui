@@ -1,76 +1,83 @@
-# Go Pub/Sub UI
+# Pub/Sub UI
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/ClickAndMortar/GoPubSub)](https://goreportcard.com/report/github.com/ClickAndMortar/GoPubSub)
+[![Go Report Card](https://goreportcard.com/badge/github.com/DennisVis/pubsubui)](https://goreportcard.com/report/github.com/DennisVis/pubsubui)
 
-This tool eases debugging Google Clouds Pub/Sub with a simple UI.
+Pub/Sub UI is graphical user interface for managing Google Cloud Pub/Sub.
 
-Features include:
+## Overview
+This application provides the following features:
 
-* Subscription to given topics
-* Automatic creation of non-existent topics or subscriptions
-* Publishing messages from UI to configured topics
-* Configurable pre-defined payloads per topic
-* Live update of received messages
-* Multi-projects
-
-![Screenshot](https://raw.githubusercontent.com/ClickAndMortar/GoPubSub/master/gopubsub.png)
+- Switching between multiple GCP projects
+- Browsing all Pub/Sub topics created within a GCP project
+- Subscribing to a topic and receiving messages as they come in
+- Publishing messages to a topic
+- Using pre-defined message payload for publishing
+- Creating new topics
+- Creating new subscriptions
 
 ## Configuration
+The following environment variables are supported:
 
-Following environment variables may be set:
+| Variable                         | Usage                                                          | Default value |
+|----------------------------------|----------------------------------------------------------------|---------------|
+| `PUBSUBUI_HOST`                  | Listening HTTP host                                            | `0.0.0.0`     |
+| `PUBSUBUI_PORT`                  | Listening HTTP port                                            | `8080`        |
+| `PUBSUBUI_CONFIG`                | Config file path (see below)                                   | `config.yaml` |
+| `GOOGLE_CLOUD_PROJECTS`          | Comma-separated list of GCP project IDs (mind the plural form) | _none_        |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud Platform JSON credentials file            | _none_        |
+| `PUBSUB_EMULATOR_HOST`           | Address of the Pub/Sub emulator (see below)                    | _none_        |
 
-| Variable | Usage | Default value |
-|---|---|---|
-| `GOPUBSUB_CONFIG` | Config file path | `config.yaml` (within `/go/src/app/` in Docker image) |
-| `GOPUBSUB_PORT` | Listening HTTP port | `8080` |
-| `GOPUBSUB_MAX_MESSAGES` | Only keep last _n_ messages per topic | `10` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to JSON credentials file | _none_ |
-| `PUBSUB_EMULATOR_HOST` | Host of emulator (see below) | _none_ |
-| `GOOGLE_CLOUD_PROJECT` | Default project name | `default-project` |
+The `GOOGLE_CLOUD_PROJECTS` is only needed if the `config.yaml` does not contain all the target GCP project IDs.
+
+The `PUBSUB_EMULATOR_HOST` is optional and functions the same as described here: 
+https://cloud.google.com/pubsub/docs/emulator#manually_setting_the_variables
+
+If `PUBSUB_EMULATOR_HOST` is not set the application will attempt to connect to the actual GCP projects. In this case 
+the `GOOGLE_APPLICATION_CREDENTIALS` will have to be set, otherwise authentication will fail.
 
 ### The `config.yaml` file
-
-To get GoPubSub working, you'll need to create `config.yaml` file with your topics and subscriptions info:
+The application can be configured to automatically create topics and their subscriptions, as well as pre-defined 
+message payloads to send to these topics. This is done within a YAML file, an example can be found below.
 
 ```yaml
 topics:
-  -
-    name: my-topic
-    project: my-gcp-project
-    subscription: my-subscription
-  -
-    name: my-other-topic
-    project: other-gcp-project
-    subscription: my-other-subscription
-    payloads:
-      -
-        name: hello
-        payload: |
-          {"hello": "world"}
-      -
-        name: hello-again
-        payload: |
-          {"hello": "world again"}
-  -
-    name: my-last-topic
+- name: my-topic
+  project: my-gcp-project
+  subscriptions:
+  - my-first-subscription
+  - my-second-subscription
+- name: my-other-topic
+  project: other-gcp-project
+  subscriptions:
+  - my-other-subscription
+  payloads:
+  - name: hello
+    payload: |
+      {
+        "hello": "world"
+      }
+  - name: hello-again
+    payload: |
+      {
+        "hello": "world again"
+      }
+- name: my-last-topic
 ```
 
-Note that all non-existant topic or subscription will be created. If no subscription is given for a topic, it will be created as `sub-<topic-name>`.
+- All topics specified will be automatically created
+- All subscriptions will be automatically created on the topic they are defined under
+- Configured payloads will be presented in the UI for the topic they are defined under
+- All project IDs will be extracted and be made selectable within the UI
 
 ## Usage
 
-### Using binary
-
-Download latest release for your OS from the [releases](https://github.com/ClickAndMortar/GoPubSub/releases) page, or run:
-
-```bash
-go get -u github.com/clickandmortar/gopubsub
-```
+### Using a binary
+Download latest release for your OS from the [releases](https://github.com/DennisVis/pubsubui/releases) page and make it available on your `$PATH`.
 
 Then:
 
 ```bash
-export GOPUBSUB_CONFIG="/path/to/config.yaml"
+export PUBSUBUI_CONFIG="/path/to/config.yaml"
 
 # To use local emulator
 export PUBSUB_EMULATOR_HOST=localhost:8085
@@ -78,36 +85,67 @@ export PUBSUB_EMULATOR_HOST=localhost:8085
 # To use actual Pub/Sub service
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/application_default_credentials.json"
 
-gopubsub
+# When needing to manage GCP projects which are not in the config.yaml
+export GOOGLE_CLOUD_PROJECTS="my-first-gcp-project,my-second-gcp-project"
+
+pubsubui
 ```
 
-And open http://localhost:8080.
+Then open http://localhost:8080.
 
-### Using Docker image
+### Using a Docker image
+When running with the emulator:
 
 ```bash
-docker pull clickandmortar/gopubsub
-docker run -d \
- -v $(pwd)/config.yaml:/go/src/app/config.yaml \
- -p 8080:8080 \
- --name="gopubsub" \
- -e PUBSUB_EMULATOR_HOST=pubsub:8085 \
- clickandmortar/gopubsub
+docker pull dennisvis/pubsubui
+
+docker run \
+  --name="pubsubui" \
+  -p 8080:8080 \
+  -v $(pwd)/config.yaml:/config/config.yaml \
+  -e PUBSUBUI_CONFIG=/config/config.yaml \
+  -e PUBSUB_EMULATOR_HOST=host.docker.internal:8085 \
+  -e GOOGLE_CLOUD_PROJECTS="my-first-gcp-project,my-second-gcp-project" \
+  dennisvis/pubsubui
 ```
 
-### With docker-compose
+When running using the actual cloud service:
 
 ```bash
-docker-compose up -d
+docker pull dennisvis/pubsubui
+
+docker run \
+  --name="pubsubui" \
+  -p 8080:8080 \
+  -v $(pwd)/config.yaml:/config/config.yaml \
+  -e PUBSUBUI_CONFIG=/config/config.yaml \
+  -e GOOGLE_CLOUD_PROJECTS="my-first-gcp-project,my-second-gcp-project" \
+  -v /path/to/application_default_credentials.json:/config/application_default_credentials.json \
+  -e GOOGLE_APPLICATION_CREDENTIALS="/config/application_default_credentials.json" \
+  dennisvis/pubsubui
 ```
 
-### From source
+Then open http://localhost:8080.
 
-```bash
-go run main.go
+### Running on Kubernetes
+The application exposes both a `/healthy` and a `/ready` endpoint which should be used for a liveness and readiness 
+probe respectively in your Kubernetes manifest.
+
+```yaml
+containers:
+- name: pubsubui
+  ...
+  livenessProbe:
+    httpGet:
+      port: 8080
+      path: /healthy
+  readinessProbe:
+    httpGet:
+      port: 8080
+      path: /ready
 ```
 
-## Build
+## Building
 
 ### Binaries
 
@@ -115,26 +153,14 @@ go run main.go
 make
 ```
 
-Linux and macOS (Darwin) binaries will be available under the `bin/` directory.
+Linux, MacOS (Darwin) and Windows binaries will be available under the `bin/` directory.
 
 ### Docker image
 
 ```bash
-make docker
+make build_docker
 ```
 
-## Improvements
-
-* [ ] Remove initial AJAX call
-* [ ] Output message attributes
-* [ ] Use Vue.js for form
-* [ ] Fetch available topics list
-* [x] Multi-project compatibility
-* [x] Live update (using SSE)
-* [x] JSON pretty-printing
-* [x] Working message publication
-* [x] Samples for message publication
-
 ## Credits
-
-This app is heavily inspired by [Google's sample](https://github.com/GoogleCloudPlatform/golang-samples/blob/master/appengine_flexible/pubsub/pubsub.go).
+This project was forked from- and based on 
+[ClickAndMortar/GoPubSub](https://github.com/ClickAndMortar/GoPubSub).
