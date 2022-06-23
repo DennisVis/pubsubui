@@ -104,8 +104,6 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 	projectIDsStr := envOrDefault(envKeyProjects, "")
 	projectIDs := filterEmptyStrings(strings.Split(projectIDsStr, ","))
 
-	g := errgroup.Group{}
-
 	projectsCh := make(chan []string)
 	clientsCh := make(chan map[string]*pubsub.Client)
 	topicsCh := make(chan Topics)
@@ -113,7 +111,8 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 
 	srvr := newServer(ctx, projectsCh, clientsCh, topicsCh, topicsCreatedCh, additionalRouterConfigs...)
 
-	g.Go(func() error {
+	setupGroup := errgroup.Group{}
+	setupGroup.Go(func() error {
 		defer close(projectsCh)
 		defer close(clientsCh)
 		defer close(topicsCh)
@@ -121,13 +120,14 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 
 		err := doAppSetup(ctx, projectIDs, configFile, projectsCh, clientsCh, topicsCh, topicsCreatedCh)
 		if err != nil {
-			return errors.Wrap(err, "application: setup failed")
+			return errors.Wrap(err, "setup: failed")
 		}
 
 		return nil
 	})
 
-	g.Go(func() error {
+	runGroup := errgroup.Group{}
+	runGroup.Go(func() error {
 		err := srvr.Start(ctx, host, uint(port))
 		if err != nil {
 			return errors.Wrap(err, "application: server: stopped with error")
@@ -136,7 +136,12 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 		return nil
 	})
 
-	err = g.Wait()
+	err = setupGroup.Wait()
+	if err != nil {
+		return errors.Wrap(err, "application: failed to start")
+	}
+
+	err = runGroup.Wait()
 	if err != nil {
 		return errors.Wrap(err, "application: stopped with error")
 	}
