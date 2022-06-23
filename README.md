@@ -16,24 +16,25 @@ This application provides the following features:
 - Creating new subscriptions
 
 ## Configuration
-The following environment variables are supported:
+The following configuration is supported:
 
-| Variable                         | Usage                                                          | Default value |
-|----------------------------------|----------------------------------------------------------------|---------------|
-| `PUBSUBUI_HOST`                  | Listening HTTP host                                            | `0.0.0.0`     |
-| `PUBSUBUI_PORT`                  | Listening HTTP port                                            | `8080`        |
-| `PUBSUBUI_CONFIG`                | Config file path (see below)                                   | `config.yaml` |
-| `GOOGLE_CLOUD_PROJECTS`          | Comma-separated list of GCP project IDs (mind the plural form) | _none_        |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud Platform JSON credentials file            | _none_        |
-| `PUBSUB_EMULATOR_HOST`           | Address of the Pub/Sub emulator (see below)                    | _none_        |
+| Environment variable              | Flag        | Usage                                               | Default   |
+|-----------------------------------|-------------|-----------------------------------------------------|-----------|
+| `PUBSUBUI_HOST`                   | `-host`     | Listening HTTP host                                 | `0.0.0.0` |
+| `PUBSUBUI_PORT`                   | `-port`     | Listening HTTP port                                 | `8080`    |
+| `PUBSUBUI_CONFIG`                 | `-config`   | Config file path (see below)                        | _none_`   |
+| `GOOGLE_CLOUD_PROJECTS` (plural!) | `-projects` | Comma-separated list of GCP project IDs             | _none_    |
+| `GOOGLE_APPLICATION_CREDENTIALS`  | _n/a_       | Path to Google Cloud Platform JSON credentials file | _none_    |
+| `PUBSUB_EMULATOR_HOST`            | _n/a_       | Address of the Pub/Sub emulator (see below)         | _none_    |
 
-The `GOOGLE_CLOUD_PROJECTS` is only needed if the `config.yaml` does not contain all the target GCP project IDs.
-
-The `PUBSUB_EMULATOR_HOST` is optional and functions the same as described here: 
-https://cloud.google.com/pubsub/docs/emulator#manually_setting_the_variables
-
-If `PUBSUB_EMULATOR_HOST` is not set the application will attempt to connect to the actual GCP projects. In this case 
-the `GOOGLE_APPLICATION_CREDENTIALS` will have to be set, otherwise authentication will fail.
+- Environment variables take precedence over flags.
+- At least one GCP project needs to be configured through either the environment variable `GOOGLE_CLOUD_PROJECTS`, the 
+  flag `-projects` or by adding a topic to a config YAML file (see below) and providing its path through the 
+  environment variable `PUBSUBUI_CONFIG` or the flag `-config`.
+- The `PUBSUB_EMULATOR_HOST` is optional and functions as described here: 
+  https://cloud.google.com/pubsub/docs/emulator#manually_setting_the_variables
+- If `PUBSUB_EMULATOR_HOST` is not set the application will attempt to connect to the actual GCP projects. In this case 
+  the `GOOGLE_APPLICATION_CREDENTIALS` will have to be set, otherwise authentication will fail.
 
 ### The `config.yaml` file
 The application can be configured to automatically create topics and their subscriptions, as well as pre-defined 
@@ -41,16 +42,16 @@ message payloads to send to these topics. This is done within a YAML file, an ex
 
 ```yaml
 topics:
-- name: my-topic
-  project: my-gcp-project
-  subscriptions:
+- name: my-topic             # required
+  project: my-gcp-project    # required
+  subscriptions:             # optional
   - my-first-subscription
-  - my-second-subscription
+  - my-second-subscription 
 - name: my-other-topic
-  project: other-gcp-project
+  project: other-gcp-project 
   subscriptions:
   - my-other-subscription
-  payloads:
+  payloads:                  # optional
   - name: hello
     payload: |
       {
@@ -64,31 +65,37 @@ topics:
 - name: my-last-topic
 ```
 
-- All topics specified will be automatically created
-- All subscriptions will be automatically created on the topic they are defined under
-- Configured payloads will be presented in the UI for the topic they are defined under
-- All project IDs will be extracted and be made selectable within the UI
+- All topics specified will be automatically created.
+- All subscriptions will be automatically created on the topic they are defined under.
+- Configured payloads will be presented in the UI for the topic they are defined under.
+- All project IDs will be extracted and be made selectable within the UI.
 
 ## Usage
 
 ### Using a binary
-Download latest release for your OS from the [releases](https://github.com/DennisVis/pubsubui/releases) page and make it available on your `$PATH`.
+Download the latest release for your OS from the [releases](https://github.com/DennisVis/pubsubui/releases) page and 
+make it available on your `$PATH`.
 
-Then:
+Then, when running with the emulator:
 
 ```bash
-export PUBSUBUI_CONFIG="/path/to/config.yaml"
+PUBSUB_EMULATOR_HOST=localhost:8085 \
+pubsubui \
+  -host localhost \
+  -port 8080 \
+  -config "/path/to/config.yaml" \
+  -projects "my-first-gcp-project,my-second-gcp-project"
+```
 
-# To use local emulator
-export PUBSUB_EMULATOR_HOST=localhost:8085
+Or, when targeting the actual cloud service:
 
-# To use actual Pub/Sub service
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/application_default_credentials.json"
-
-# When needing to manage GCP projects which are not in the config.yaml
-export GOOGLE_CLOUD_PROJECTS="my-first-gcp-project,my-second-gcp-project"
-
-pubsubui
+```bash
+GOOGLE_APPLICATION_CREDENTIALS="/path/to/application_default_credentials.json" \
+pubsubui \
+  -host localhost \
+  -port 8080 \
+  -config "/path/to/config.yaml" \
+  -projects "my-first-gcp-project,my-second-gcp-project"
 ```
 
 Then open http://localhost:8080.
@@ -109,7 +116,7 @@ docker run \
   dennisvis/pubsubui
 ```
 
-When running using the actual cloud service:
+When targeting the actual cloud service:
 
 ```bash
 docker pull dennisvis/pubsubui

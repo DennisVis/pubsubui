@@ -18,7 +18,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -28,17 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	AppName   = "pubsubui"
-	LogPrefix = AppName + ": "
-)
-
-const (
-	envKeyHost     = "PUBSUBUI_HOST"
-	envKeyPort     = "PUBSUBUI_PORT"
-	envKeyProjects = "GOOGLE_CLOUD_PROJECTS"
-	envKeyConfig   = "PUBSUBUI_CONFIG"
-)
+const AppName = "pubsubui"
 
 func doAppSetup(
 	ctx context.Context,
@@ -49,39 +38,58 @@ func doAppSetup(
 	topicsCh chan<- Topics,
 	topicsCreatedCh chan<- struct{},
 ) error {
-	rdr, err := os.Open(configFilePath)
-	if err != nil {
-		return errors.Wrapf(err, "setup: could not open config file location %q", configFilePath)
-	}
+	logWithPrefix("setup: starting")
 
-	topics, err := parseTopics(rdr)
-	if err != nil {
+	skipTopicCreation := false
+
+	var topics Topics
+	if configFilePath == "" {
+		skipTopicCreation = true
+		logWithPrefix("setup: no config file path provided, skipping topic creation")
+	} else {
+		rdr, err := os.Open(configFilePath)
+		if err != nil {
+			return errors.Wrapf(err, "setup: could not open config file location %q", configFilePath)
+		}
+
+		parsedTopics, err := parseTopics(rdr)
+		if err != nil {
+			rdr.Close()
+			return errors.Wrap(err, "setup: could not parse topics config")
+		}
 		rdr.Close()
-		return errors.Wrap(err, "setup: could not parse topics config")
+
+		topics = parsedTopics
 	}
-	rdr.Close()
 
 	topicsCh <- topics
 
-	projectIDs = deduplicateStrings(append(projectIDs, topics.ProjectIDs()...))
+	allProjectIDs := deduplicateStrings(append(projectIDs, topics.ProjectIDs()...))
+	if len(allProjectIDs) == 0 {
+		return errors.New("setup: no GCP projects configured")
+	}
 
-	projectsCh <- projectIDs
+	projectsCh <- allProjectIDs
 
 	logWithPrefix("setup: supporting the following Google Cloud Platform projects: %s", strings.Join(projectIDs, ", "))
 
-	clients, err := createClients(ctx, projectIDs)
+	clients, err := createClients(ctx, allProjectIDs)
 	if err != nil {
 		return errors.Wrap(err, "setup: could not create Pub/Sub clients")
 	}
 
 	clientsCh <- clients
 
-	err = createTopics(ctx, clients, topics)
-	if err != nil {
-		return errors.Wrap(err, "setup: could not create Pub/Sub topics")
+	if !skipTopicCreation {
+		err = createTopics(ctx, clients, topics)
+		if err != nil {
+			return errors.Wrap(err, "setup: could not create Pub/Sub topics")
+		}
 	}
 
 	topicsCreatedCh <- struct{}{}
+
+	logWithPrefix("setup: finished")
 
 	return nil
 }
@@ -89,20 +97,13 @@ func doAppSetup(
 func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.Router)) error {
 	logWithPrefix("application: starting")
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	host := envOrDefault(envKeyHost, "0.0.0.0")
-	portStr := envOrDefault(envKeyPort, "8080")
-	configFile := envOrDefault(envKeyConfig, "config.yaml")
-
-	port, err := strconv.Atoi(portStr)
+	cfg, err := newConfig()
 	if err != nil {
-		return errors.Wrapf(err, "application: invalid port number: %s", portStr)
+		return errors.Wrap(err, "application: could not create config")
 	}
 
-	projectIDsStr := envOrDefault(envKeyProjects, "")
-	projectIDs := filterEmptyStrings(strings.Split(projectIDsStr, ","))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	projectsCh := make(chan []string)
 	clientsCh := make(chan map[string]*pubsub.Client)
@@ -118,7 +119,7 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 		defer close(topicsCh)
 		defer close(topicsCreatedCh)
 
-		err := doAppSetup(ctx, projectIDs, configFile, projectsCh, clientsCh, topicsCh, topicsCreatedCh)
+		err := doAppSetup(ctx, cfg.projectIDs, cfg.configFilePath, projectsCh, clientsCh, topicsCh, topicsCreatedCh)
 		if err != nil {
 			return errors.Wrap(err, "setup: failed")
 		}
@@ -128,7 +129,7 @@ func RunAppWithContext(ctx context.Context, additionalRouterConfigs ...func(chi.
 
 	runGroup := errgroup.Group{}
 	runGroup.Go(func() error {
-		err := srvr.Start(ctx, host, uint(port))
+		err := srvr.Start(ctx, cfg.host, cfg.port)
 		if err != nil {
 			return errors.Wrap(err, "application: server: stopped with error")
 		}
