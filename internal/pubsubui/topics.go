@@ -92,13 +92,16 @@ func createSubscription(
 ) error {
 	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(timeoutSubscriptionCreation))
 	defer func() {
-		logWithPrefix(
-			"subscription: creating: timeout on %q for topic %q in project %q",
-			subscriptionName,
-			topicName,
-			projectID,
-		)
-		cancel()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			logWithPrefix(
+				"subscription: creating: timeout on %q for topic %q in project %q",
+				subscriptionName,
+				topicName,
+				projectID,
+			)
+		} else {
+			cancel()
+		}
 	}()
 
 	logWithPrefix("subscription: creating: %q for topic %q in project %q", subscriptionName, topicName, projectID)
@@ -135,8 +138,11 @@ func createSubscription(
 func createTopic(ctx context.Context, client *pubsub.Client, topicCfg Topic) error {
 	dlctx, cancel := context.WithDeadline(ctx, time.Now().Add(timeoutTopicCreation))
 	defer func() {
-		logWithPrefix("topic: creating: timeout on %q in project %q", topicCfg.Name, topicCfg.ProjectID)
-		cancel()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			logWithPrefix("topic: creating: timeout on %q in project %q", topicCfg.Name, topicCfg.ProjectID)
+		} else {
+			cancel()
+		}
 	}()
 
 	logWithPrefix("topic: creating: %q in project %q", topicCfg.Name, topicCfg.ProjectID)
