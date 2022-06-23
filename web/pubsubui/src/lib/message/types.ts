@@ -31,5 +31,6 @@ export class MessagesState {
     readonly open: boolean,
     readonly topic: string,
     readonly messages: PubSubMessage[],
+    readonly error: string | undefined = undefined,
   ) {}
 }

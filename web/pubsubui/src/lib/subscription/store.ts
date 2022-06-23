@@ -34,6 +34,7 @@ function createSubscriptions() {
       await api.createSubscription(projectId, topicId, subscriptionName)
     } catch (err) {
       console.error('could not create subscription', subscriptionName, err)
+      throw err
     } finally {
       update(s => new SubscriptionState(false))
     }

@@ -35,6 +35,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -262,6 +264,53 @@ func (srv *Server) Ready(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(status))
 }
 
+func gRPCErrorCodeToHTTPStatus(c codes.Code) int {
+	switch c {
+	case codes.InvalidArgument:
+		return http.StatusBadRequest
+	case codes.DeadlineExceeded:
+		return http.StatusRequestTimeout
+	case codes.NotFound:
+		return http.StatusNotFound
+	case codes.AlreadyExists:
+		return http.StatusAlreadyReported
+	case codes.PermissionDenied:
+		return http.StatusForbidden
+	case codes.ResourceExhausted:
+		return http.StatusServiceUnavailable
+	case codes.FailedPrecondition:
+		return http.StatusPreconditionFailed
+	case codes.Aborted:
+		return http.StatusNotAcceptable
+	case codes.OutOfRange:
+		return http.StatusRequestedRangeNotSatisfiable
+	case codes.Unimplemented:
+		return http.StatusNotImplemented
+	case codes.Internal:
+		return http.StatusInternalServerError
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable
+	case codes.DataLoss:
+		return http.StatusInternalServerError
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized
+	default:
+		logWithPrefix("server: unknown gRPC error code: %s", c)
+		return http.StatusInternalServerError
+	}
+}
+
+func handleGoogleError(w http.ResponseWriter, actionTried string, err error) {
+	grpcStatus := status.Convert(err)
+	httpStatus := gRPCErrorCodeToHTTPStatus(grpcStatus.Code())
+
+	if httpStatus >= 500 {
+		logWithPrefix("server: could not %s: %+v", actionTried, err)
+	}
+
+	http.Error(w, grpcStatus.Message(), httpStatus)
+}
+
 func (srv *Server) ListProjects(w http.ResponseWriter, r *http.Request) {
 	bts, err := json.Marshal(listProjectsResponse{
 		Projects: srv.projectIDs,
@@ -296,8 +345,7 @@ func (srv *Server) CreateTopic(w http.ResponseWriter, r *http.Request) {
 
 	topic, err := client.CreateTopic(ctx, req.Name)
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not create topic"))
-		http.Error(w, "could not publish message", http.StatusInternalServerError)
+		handleGoogleError(w, "create topic", err)
 		return
 	}
 
@@ -362,8 +410,7 @@ func (srv *Server) ListTopics(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			if err != nil {
-				logWithPrefix("server: %+v", errors.Wrap(err, "could not list topics"))
-				http.Error(w, "could not list topics", http.StatusInternalServerError)
+				handleGoogleError(w, " list topics", err)
 				return
 			}
 
@@ -435,8 +482,7 @@ func (srv *Server) Publish(w http.ResponseWriter, r *http.Request) {
 
 	id, err := res.Get(ctx)
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not publish message"))
-		http.Error(w, "could not publish message", http.StatusInternalServerError)
+		handleGoogleError(w, "publish message", err)
 		return
 	}
 
@@ -476,8 +522,7 @@ func (srv *Server) CreateSubscription(w http.ResponseWriter, r *http.Request) {
 	topic := client.Topic(topicID)
 	exists, err := topic.Exists(ctx)
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not check for topic existence"))
-		http.Error(w, "could not check for topic existence", http.StatusInternalServerError)
+		handleGoogleError(w, "check for topic existence", err)
 		return
 	}
 	if !exists {
@@ -489,14 +534,8 @@ func (srv *Server) CreateSubscription(w http.ResponseWriter, r *http.Request) {
 		Topic: topic,
 	})
 	if err != nil {
-		errMsg := fmt.Sprintf(
-			"could not create subscription %q on topic %q in project %q",
-			req.Name,
-			topicID,
-			projectID,
-		)
-		logWithPrefix("server: %+v", errors.Wrapf(err, errMsg))
-		http.Error(w, errMsg, http.StatusInternalServerError)
+		actionTried := fmt.Sprintf("create subscription %q on topic %q in project %q", req.Name, topicID, projectID)
+		handleGoogleError(w, actionTried, err)
 		return
 	}
 
@@ -538,8 +577,7 @@ func (srv *Server) Subscribe(w http.ResponseWriter, r *http.Request) {
 	topic := client.Topic(topicID)
 	exists, err := topic.Exists(ctx)
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not check for topic existence"))
-		http.Error(w, "could not check for topic existence", http.StatusInternalServerError)
+		handleGoogleError(w, "check for topic existence", err)
 		return
 	}
 	if !exists {
@@ -554,8 +592,7 @@ func (srv *Server) Subscribe(w http.ResponseWriter, r *http.Request) {
 		Topic: topic,
 	})
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not create subscription"))
-		http.Error(w, "could not create subscription", http.StatusInternalServerError)
+		handleGoogleError(w, "create subscription", err)
 		return
 	}
 	defer sub.Delete(context.Background())
@@ -568,8 +605,7 @@ func (srv *Server) Subscribe(w http.ResponseWriter, r *http.Request) {
 		messageCh <- msg
 	})
 	if err != nil {
-		logWithPrefix("server: %+v", errors.Wrap(err, "could not receive messages"))
-		http.Error(w, "could not receive messages", http.StatusInternalServerError)
+		handleGoogleError(w, "receive messages", err)
 		return
 	}
 

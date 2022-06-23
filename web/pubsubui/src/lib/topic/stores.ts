@@ -64,6 +64,7 @@ function createTopics() {
         s.page,
         s.totalPages,
       ))
+      throw err
     }
   }
 
@@ -88,6 +89,7 @@ function createTopics() {
      ))
     } catch (err) {
       console.error('could not call create topic endpoint', err)
+      throw err
     }
   }
 
@@ -96,6 +98,7 @@ function createTopics() {
       await api.publishMessage(projectId, topicId, message)
     } catch (err) {
       console.error('could not publish message', err)
+      throw err
     }
   }
 

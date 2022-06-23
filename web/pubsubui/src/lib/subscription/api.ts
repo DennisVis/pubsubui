@@ -32,7 +32,7 @@ export const api = {
         }),
       })
       if (res.status >= 400) {
-        throw new Error(`could not create subscription: ${res.status}`)
+        throw new Error(`could not create subscription: ${await res.text()}`)
       }
 
       const json = await res.json()
