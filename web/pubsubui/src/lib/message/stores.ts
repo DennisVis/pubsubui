@@ -44,6 +44,7 @@ function createMessages() {
         const newMessage = jsonToPubSubMessage(JSON.parse(message))
         return new MessagesState(s.connecting, s.open, s.topic, [newMessage, ...s.messages])
       }),
+      err => update(() => new MessagesState(false, false, '', [], err)),
     )
   }
 

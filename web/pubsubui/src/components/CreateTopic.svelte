@@ -31,23 +31,25 @@
   export let open: boolean = false
 
   let newTopicName: string | undefined
-  let snackbarTopicCreationSucceeded: SnackbarComponentDev
-  let snackbarTopicCreationFailed: SnackbarComponentDev
+  let snackbar: SnackbarComponentDev
+  let snackbarMessage: string = ''
 
-  function createTopic(projectId: string | undefined, topicName: string | undefined) {
+  async function createTopic(projectId: string | undefined, topicName: string | undefined) {
     if (!projectId || !topicName) {
       return
     }
 
+    snackbarMessage = ''
     dispatch('creating')
 
     try {
-      topics.createTopic(projectId, topicName)
-      snackbarTopicCreationSucceeded.open()
+      await topics.createTopic(projectId, topicName)
+      snackbarMessage = `Creating the topic "${newTopicName}" succeeded.`
     } catch (err) {
       console.error('could not create topic', topicName, err)
-      snackbarTopicCreationFailed.open()
+      snackbarMessage = (err as Error).message
     } finally {
+      snackbar.open()
       dispatch('done')
     }
   }
@@ -86,15 +88,8 @@
   </Actions>
 </Dialog>
 
-<Snackbar bind:this={snackbarTopicCreationSucceeded}>
-  <SnackLabel>Creating the topic "{newTopicName}" succeeded.</SnackLabel>
-  <SnackActions>
-    <IconButton class="material-icons" title="Dismiss">close</IconButton>
-  </SnackActions>
-</Snackbar>
-
-<Snackbar bind:this={snackbarTopicCreationFailed}>
-  <SnackLabel>Creating the topic "{newTopicName}" failed.</SnackLabel>
+<Snackbar bind:this={snackbar}>
+  <SnackLabel>{snackbarMessage}</SnackLabel>
   <SnackActions>
     <IconButton class="material-icons" title="Dismiss">close</IconButton>
   </SnackActions>

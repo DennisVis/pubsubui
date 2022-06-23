@@ -33,10 +33,10 @@
   export let topicName: string | undefined
 
   let newSubscriptionName: string | undefined
-  let snackbarSubscriptionCreationSucceeded: SnackbarComponentDev
-  let snackbarSubscriptionCreationFailed: SnackbarComponentDev
+  let snackbar: SnackbarComponentDev
+  let snackbarMessage: string = ''
 
-  function createSubscription(
+  async function createSubscription(
     projectId: string | undefined,
     topicId: string | undefined,
     subcriptionName: string | undefined,
@@ -45,15 +45,17 @@
       return
     }
 
+    snackbarMessage = ''
     dispatch('creating')
 
     try {
-      subscriptions.createSubscription(projectId, topicId, subcriptionName)
-      snackbarSubscriptionCreationSucceeded.open()
+      await subscriptions.createSubscription(projectId, topicId, subcriptionName)
+      snackbarMessage = `Creating the subscription "${newSubscriptionName}" on topic "${topicName}" succeeded.`
     } catch (err) {
       console.error('could not create subscription', subcriptionName, err)
-      snackbarSubscriptionCreationFailed.open()
+      snackbarMessage = (err as Error).message
     } finally {
+      snackbar.open()
       dispatch('done')
     }
   }
@@ -92,15 +94,8 @@
   </Actions>
 </Dialog>
 
-<Snackbar bind:this={snackbarSubscriptionCreationSucceeded}>
-  <SnackLabel>Creating the subscription "{newSubscriptionName}" on topic "{topicName}" succeeded.</SnackLabel>
-  <SnackActions>
-    <IconButton class="material-icons" title="Dismiss">close</IconButton>
-  </SnackActions>
-</Snackbar>
-
-<Snackbar bind:this={snackbarSubscriptionCreationFailed}>
-  <SnackLabel>Creating the subscription "{newSubscriptionName}" on topic "{topicName}" failed.</SnackLabel>
+<Snackbar bind:this={snackbar}>
+  <SnackLabel>{snackbarMessage}</SnackLabel>
   <SnackActions>
     <IconButton class="material-icons" title="Dismiss">close</IconButton>
   </SnackActions>

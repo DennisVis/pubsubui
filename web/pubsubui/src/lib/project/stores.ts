@@ -50,6 +50,7 @@ function createProjects() {
     } catch (err) {
       console.error('could not fetch projects', err)
       update(s => new ProjectsState(false, s.projects))
+      throw err
     }
   }
 

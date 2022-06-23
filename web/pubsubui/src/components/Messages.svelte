@@ -17,14 +17,20 @@
 <script lang="ts">
   import Button, { Icon, Label } from '@smui/button'
   import Card from '@smui/card'
+  import IconButton from '@smui/icon-button'
   import LayoutGrid, { Cell } from '@smui/layout-grid'
   import Paper, { Content, Title } from '@smui/paper'
+  import type { SnackbarComponentDev } from '@smui/snackbar'
+  import Snackbar, { Actions as SnackActions, Label as SnackLabel } from '@smui/snackbar'
   import { messages } from '../lib/message/stores'
   import { theme } from '../lib/theme/stores'
   import { appWindow } from '../lib/window/stores'
 
   let titleSpan: number = 7
   let unsubSpan: number = 5
+
+  let snackbar: SnackbarComponentDev
+  let snackbarMessage: string = ''
 
   $: {
     switch (true) {
@@ -36,6 +42,16 @@
         titleSpan = 12
         unsubSpan = 12
         break
+    }
+  }
+
+  $: {
+    if (!!$messages.error) {
+      snackbarMessage = $messages.error
+      snackbar.open()
+    } else {
+      snackbarMessage = ''
+      !!snackbar && snackbar.close()
     }
   }
 </script>
@@ -117,6 +133,13 @@
     </Cell>
   </LayoutGrid>
 </div>
+
+<Snackbar bind:this={snackbar}>
+  <SnackLabel>{snackbarMessage}</SnackLabel>
+  <SnackActions>
+    <IconButton class="material-icons" title="Dismiss">close</IconButton>
+  </SnackActions>
+</Snackbar>
 
 <style>
   * :global(.messages-paper) {

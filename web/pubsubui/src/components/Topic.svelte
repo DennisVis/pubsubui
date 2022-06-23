@@ -39,15 +39,17 @@
 
   let panelOpen = false
 
-  let jsonEditor: JSONEditor
-  let content = {
+  const defaultJsonContent = {
     text: '{}',
   }
+  let jsonEditor: JSONEditor
+  let content = defaultJsonContent
+
   let payloadMenu: MenuComponentDev
   let payloadMenuAnchor: HTMLDivElement
   let payloadMenuAnchorClasses: { [k: string]: boolean } = {}
-  let snackbarPublishSucceeded: SnackbarComponentDev
-  let snackbarPublishFailed: SnackbarComponentDev
+  let snackbar: SnackbarComponentDev
+  let snackbarMessage: string = ''
 
   let creatingSubscription: boolean = false
 
@@ -56,35 +58,39 @@
   }
 
   async function publishMessage() {
+    snackbarMessage = ''
+
     dispatch('publish')
 
     try {
       await topics.publishMessage(topic.projectId, topic.id, content.text)
-      snackbarPublishSucceeded.open()
+      snackbarMessage = `Published message to "${topic.name}".`
     } catch (err) {
       console.error('could not publish message', err)
-      snackbarPublishFailed.open()
+      snackbarMessage = (err as Error).message
     } finally {
+      snackbar.open()
       dispatch('done')
+    }
+  }
+
+  $: {
+    if ($topics.loading) {
+      panelOpen = false
+      content = defaultJsonContent
     }
   }
 </script>
 
 <div>
-  <Snackbar bind:this={snackbarPublishSucceeded}>
-    <SnackLabel>Published message to "{topic.name}".</SnackLabel>
-    <Actions>
-      <IconButton class="material-icons" title="Dismiss">close</IconButton>
-    </Actions>
-  </Snackbar>
-  <Snackbar bind:this={snackbarPublishFailed}>
-    <SnackLabel>Publishing to "{topic.name}" failed.</SnackLabel>
+  <Snackbar bind:this={snackbar}>
+    <SnackLabel>{snackbarMessage}</SnackLabel>
     <Actions>
       <IconButton class="material-icons" title="Dismiss">close</IconButton>
     </Actions>
   </Snackbar>
 
-  <Panel bind:open={panelOpen} class={$theme === 'dark' ? 'jse-theme-dark' : ''}>
+  <Panel bind:open={panelOpen} class={$theme === 'dark' ? 'jse-theme-dark' : ''} disabled={$topics.loading}>
     <Header>
       {topic.name}
 

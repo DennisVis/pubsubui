@@ -27,6 +27,10 @@ export const api = {
           name: topicName,
         }),
       })
+      if (res.status >= 400) {
+        throw new Error(`could not create topic: ${await res.text()}`)
+      }
+
       const json = await res.json()
       return jsonToCreateTopicResponse(json)
     } catch (err) {
@@ -38,6 +42,10 @@ export const api = {
   async listTopics(projectId: string, page: number, pageSize: number): Promise<ListTopicsResponse> {
     try {
       const res = await fetch(`/api/projects/${projectId}/topics?page=${page}&pageSize=${pageSize}`)
+      if (res.status >= 400) {
+        throw new Error(`could not list topics: ${await res.text()}`)
+      }
+
       const json = await res.json()
       return jsonToListTopicsResponse(json)
     } catch (err) {
@@ -56,7 +64,7 @@ export const api = {
         body: message,
       })
       if (res.status >= 400) {
-        throw new Error(`could not publish message: ${res.status}`)
+        throw new Error(`could not publish message: ${await res.text()}`)
       }
 
       const json = await res.json()

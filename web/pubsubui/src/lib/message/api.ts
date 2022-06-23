@@ -13,20 +13,25 @@
 // limitations under the License.
 
 export const api = {
-  subscribe(projectId: string, topicId: string, onOpen: () => void, onMessage: (msg: string) => void): () => void {
+  subscribe(
+    projectId: string,
+    topicId: string,
+    onOpen: () => void,
+    onMessage: (msg: string) => void,
+    onError: (err: string) => void,
+  ): () => void {
     const source = new EventSource(`/api/projects/${projectId}/topics/${topicId}`)
 
-    source.addEventListener('open', () => {
-      onOpen()
-    })
+    source.onerror = () => {
+      // Sadly, we don't get any descriptive error from the EventSource and therefore have to guess what happened.
+      onError('Subscription failed, do you have sufficient permissions?')
+    }
 
-    source.addEventListener('message', event => {
-      onMessage(event.data)
-    })
+    source.onopen = onOpen
 
-    source.addEventListener('error', event => {
-      console.error('event source error', event)
-    })
+    source.onmessage = message => {
+      onMessage(message.data)
+    }
 
     return () => {
       source.close()

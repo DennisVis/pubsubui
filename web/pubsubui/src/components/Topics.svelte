@@ -55,7 +55,8 @@
             {#each $topics.topics as topic}
             <Topic
               publishing={publishing}
-              topic={topic} on:publish={() => publishing = true}
+              topic={topic}
+              on:publish={() => publishing = true}
               on:done={() => publishing = false}
             />
             {/each}
