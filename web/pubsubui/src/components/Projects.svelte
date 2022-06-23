@@ -18,6 +18,7 @@
   import { onMount } from 'svelte'
   import Select, { Option } from '@smui/select'
   import { activeProject, projects } from '../lib/project/stores'
+  import { messages } from '../lib/message/stores'
 
   onMount(() => {
     projects.fetchProjects()
@@ -33,7 +34,7 @@
     class="project-select"
   >
     {#each $projects.projects as project}
-      <Option value={project}>{project}</Option>
+      <Option value={project} on:click={() => messages.unSubscribe()}>{project}</Option>
     {/each}
   </Select>
 </div>
