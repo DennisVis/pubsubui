@@ -19,6 +19,16 @@
   import Select, { Option } from '@smui/select'
   import { activeProject, projects } from '../lib/project/stores'
   import { messages } from '../lib/message/stores'
+  import { topics } from '../lib/topic/stores'
+
+  function handleProjectSelect(activeProject: string | undefined, newProject: string) {
+    if (newProject === activeProject) {
+      return
+    }
+
+    messages.unSubscribe()
+    topics.selectPage(1)
+  }
 
   onMount(() => {
     projects.fetchProjects()
@@ -34,7 +44,7 @@
     class="project-select"
   >
     {#each $projects.projects as project}
-      <Option value={project} on:click={() => messages.unSubscribe()}>{project}</Option>
+      <Option value={project} on:click={() => handleProjectSelect($activeProject, project)}>{project}</Option>
     {/each}
   </Select>
 </div>
