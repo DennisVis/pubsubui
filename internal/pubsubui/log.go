@@ -14,31 +14,10 @@
 
 package pubsubui
 
-func filterEmptyStrings(strs []string) []string {
-	filtered := make([]string, 0)
+import "log"
 
-	for _, s := range strs {
-		if s != "" {
-			filtered = append(filtered, s)
-		}
-	}
+const LogPrefix = AppName + ": "
 
-	return filtered
-}
-
-func deduplicateStrings(strs []string) []string {
-	stringsMap := make(map[string]bool)
-
-	for _, s := range strs {
-		stringsMap[s] = true
-	}
-
-	strings := make([]string, len(stringsMap))
-	idx := 0
-	for s := range stringsMap {
-		strings[idx] = s
-		idx++
-	}
-
-	return strings
+func logWithPrefix(format string, a ...interface{}) {
+	log.Printf(LogPrefix+format, a...)
 }

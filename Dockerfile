@@ -30,7 +30,5 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/pubsubui ./cmd/pubsu
 
 FROM debian:bullseye-slim
 WORKDIR /app
-RUN echo -e "topics:\n" > config.yaml
 COPY --from=go-build /build/bin/pubsubui ./pubsubui
-ENV PUBSUBUI_CONFIG=/app/config.yaml
 ENTRYPOINT ["./pubsubui"]
