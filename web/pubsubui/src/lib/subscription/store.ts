@@ -36,7 +36,7 @@ function createSubscriptions() {
       console.error('could not create subscription', subscriptionName, err)
       throw err
     } finally {
-      update(s => new SubscriptionState(false))
+      update(() => new SubscriptionState(false))
     }
   }
 

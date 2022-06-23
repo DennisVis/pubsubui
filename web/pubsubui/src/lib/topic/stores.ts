@@ -88,7 +88,13 @@ function createTopics() {
         s.totalPages,
      ))
     } catch (err) {
-      console.error('could not call create topic endpoint', err)
+      console.error('could not create topic', err)
+      update(s => new TopicsState(
+        false,
+        s.topics,
+        s.page,
+        s.totalPages,
+      ))
       throw err
     }
   }
