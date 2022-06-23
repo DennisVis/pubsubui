@@ -16,7 +16,7 @@ import { derived, writable } from 'svelte/store'
 import { activeProject } from '../project/stores'
 import { appWindow } from '../window/stores'
 import { api } from './api'
-import { Topic, TopicsState } from './types'
+import { TopicsState } from './types'
 
 function createTopics() {
   let totalPages = 1
