@@ -52,13 +52,14 @@ const (
 type Server struct {
 	additionalRouterConfigs []func(chi.Router)
 	statusMu                sync.Mutex
+	projectIDs              []string
 	projectsSet             bool
+	clients                 map[string]*pubsub.Client
 	clientsSet              bool
+	payloads                map[string][]MessagePayload
 	topicsSet               bool
 	topicsCreated           bool
-	projectIDs              []string
-	payloads                map[string][]MessagePayload
-	clients                 map[string]*pubsub.Client
+	topicsCache             map[string][]Topic
 	sse                     *ServerSSE
 }
 
@@ -151,6 +152,7 @@ func newServer(
 ) *Server {
 	srv := &Server{
 		additionalRouterConfigs: additionalRouterConfigs,
+		topicsCache:             make(map[string][]Topic),
 	}
 
 	go handleServerSetup(srv, projectsCh, clientsCh, topicsCh, topicsCreatedCh)
@@ -304,14 +306,16 @@ func (srv *Server) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	topicKey := fmt.Sprintf("%s/%s", projectID, topicName)
 	payloads := srv.payloads[topicKey]
 
-	bts, err := json.Marshal(createTopicResponse{
-		Topic{
-			ID:        topicID,
-			Name:      topicName,
-			ProjectID: projectID,
-			Payloads:  payloads,
-		},
-	})
+	newTopic := Topic{
+		ID:        topicID,
+		Name:      topicName,
+		ProjectID: projectID,
+		Payloads:  payloads,
+	}
+
+	srv.topicsCache[projectID] = append(srv.topicsCache[projectID], newTopic)
+
+	bts, err := json.Marshal(createTopicResponse{newTopic})
 	if err != nil {
 		logWithPrefix("server: %+v", errors.Wrap(err, "could not encode create topic response as JSON"))
 		http.Error(w, "could not encode create topic response as JSON", http.StatusInternalServerError)
@@ -349,30 +353,34 @@ func (srv *Server) ListTopics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	topics := make([]Topic, 0)
-	topicIt := client.Topics(ctx)
-	for {
-		topic, err := topicIt.Next()
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			logWithPrefix("server: %+v", errors.Wrap(err, "could not list topics"))
-			http.Error(w, "could not list topics", http.StatusInternalServerError)
-			return
+	topics, ok := srv.topicsCache[projectID]
+	if !ok {
+		topicIt := client.Topics(ctx)
+		for {
+			topic, err := topicIt.Next()
+			if errors.Is(err, iterator.Done) {
+				break
+			}
+			if err != nil {
+				logWithPrefix("server: %+v", errors.Wrap(err, "could not list topics"))
+				http.Error(w, "could not list topics", http.StatusInternalServerError)
+				return
+			}
+
+			topicID := topic.ID()
+			topicName := topicNameFromTopicID(topicID)
+			topicKey := fmt.Sprintf("%s/%s", projectID, topicName)
+			payloads := srv.payloads[topicKey]
+
+			topics = append(topics, Topic{
+				ID:        topicID,
+				Name:      topicName,
+				ProjectID: projectID,
+				Payloads:  payloads,
+			})
 		}
 
-		topicID := topic.ID()
-		topicName := topicNameFromTopicID(topicID)
-		topicKey := fmt.Sprintf("%s/%s", projectID, topicName)
-		payloads := srv.payloads[topicKey]
-
-		topics = append(topics, Topic{
-			ID:        topicID,
-			Name:      topicName,
-			ProjectID: projectID,
-			Payloads:  payloads,
-		})
+		srv.topicsCache[projectID] = topics
 	}
 
 	totalItems := uint(len(topics))
